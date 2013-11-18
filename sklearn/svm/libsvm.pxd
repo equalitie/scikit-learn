@@ -38,6 +38,8 @@ cdef extern from "svm.h":
     void svm_free_and_destroy_model(svm_model** model_ptr_ptr)
     void svm_cross_validation(svm_problem *, svm_parameter *, int nr_fold, double *target) nogil
 
+    #vmon: added so we can use our model in c++ later
+    int svm_save_model(char *, svm_model *model) nogil
 
 cdef extern from "libsvm_helper.c":
     # this file contains methods for accessing libsvm 'hidden' fields

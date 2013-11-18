@@ -380,6 +380,31 @@ class BaseLibSVM(six.with_metaclass(ABCMeta, BaseEstimator)):
 
         return dec_func
 
+    def save_libsvm_model(self, model_file_name):
+        """store the fitted model in a file that can be consequently used
+        by libsvm to do prediction
+
+        Parameters
+        ----------
+        libsvm_model_filename : the name of the file that is going to store
+        the model
+
+        Returns
+        -------
+        None, raise an exception in case of failure to save
+        """
+        kernel = self.kernel
+        if callable(kernel):
+            kernel = 'precomputed'
+
+        libsvm.save_libsvm_model(model_file_name,
+            self.support_, self.support_vectors_, self.n_support_,
+            self.dual_coef_, self._intercept_, self._label,
+            self.probA_, self.probB_,
+            svm_type=LIBSVM_IMPL.index(self._impl),
+            kernel=kernel, degree=self.degree, cache_size=self.cache_size,
+            coef0=self.coef0, gamma=self._gamma)
+
     def _validate_for_predict(self, X):
         X = atleast2d_or_csr(X, dtype=np.float64, order="C")
         if self._sparse and not sp.isspmatrix(X):

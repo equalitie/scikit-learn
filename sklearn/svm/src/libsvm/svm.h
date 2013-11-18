@@ -15,6 +15,13 @@ struct svm_node
 	double *values;
 };
 
+//Vmon: Added for compatibility to libsvm
+struct libsvm_node
+{
+	int index;
+	double value;
+};
+
 struct svm_problem
 {
 	int l;

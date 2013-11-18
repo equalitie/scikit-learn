@@ -2925,6 +2925,123 @@ double PREFIX(predict_probability)(
 		return PREFIX(predict)(model, x);
 }
 
+static const char *PREFIX(type_table)[] =
+{
+	"c_svc","nu_svc","one_class","epsilon_svr","nu_svr",NULL
+};
+
+static const char *PREFIX(kernel_type_table)[]=
+{
+	"linear","polynomial","rbf","sigmoid","precomputed",NULL
+};
+
+int PREFIX(save_model)(const char *model_file_name, const PREFIX(model) *model)
+{
+	FILE *fp = fopen(model_file_name,"w");
+	if(fp==NULL) return -1;
+
+	const svm_parameter& param = model->param;
+
+	fprintf(fp,"svm_type %s\n", svm_type_table[param.svm_type]);
+	fprintf(fp,"kernel_type %s\n", PREFIX(kernel_type_table)[param.kernel_type]);
+
+	if(param.kernel_type == POLY)
+		fprintf(fp,"degree %d\n", param.degree);
+
+	if(param.kernel_type == POLY || param.kernel_type == RBF || param.kernel_type == SIGMOID)
+		fprintf(fp,"gamma %g\n", param.gamma);
+
+	if(param.kernel_type == POLY || param.kernel_type == SIGMOID)
+		fprintf(fp,"coef0 %g\n", param.coef0);
+
+	int nr_class = model->nr_class;
+	int l = model->l;//SV->dim
+	fprintf(fp, "nr_class %d\n", nr_class);
+	fprintf(fp, "total_sv %d\n",l);
+	
+	{
+		fprintf(fp, "rho");
+		for(int i=0;i<nr_class*(nr_class-1)/2;i++)
+			fprintf(fp," %g",model->rho[i]);
+		fprintf(fp, "\n");
+	}
+	
+	if(model->label)
+	{
+		fprintf(fp, "label");
+		for(int i=0;i<nr_class;i++)
+			fprintf(fp," %d",model->label[i]);
+		fprintf(fp, "\n");
+	}
+
+	if(model->probA) // regression has probA only
+	{
+		fprintf(fp, "probA");
+		for(int i=0;i<nr_class*(nr_class-1)/2;i++)
+			fprintf(fp," %g",model->probA[i]);
+		fprintf(fp, "\n");
+	}
+	if(model->probB)
+	{
+		fprintf(fp, "probB");
+		for(int i=0;i<nr_class*(nr_class-1)/2;i++)
+			fprintf(fp," %g",model->probB[i]);
+		fprintf(fp, "\n");
+	}
+
+	if(model->nSV)
+	{
+		fprintf(fp, "nr_sv");
+		for(int i=0;i<nr_class;i++)
+			fprintf(fp," %d",model->nSV[i]);
+		fprintf(fp, "\n");
+	}
+
+	fprintf(fp, "SV\n");
+	const double * const *sv_coef = model->sv_coef;
+       
+#ifdef _DENSE_REP
+	//Vmon: hack to convert the scikit-learn model to libsvm model
+	//when we are dealing with dense data.
+	printf("DEBUG:storing dense...\n");
+	libsvm_node **SV = new libsvm_node*[l];
+	for(int i=0;i<l;i++) {
+	  SV[i] = new libsvm_node[model->SV[i].dim+1];
+	  for(int j=0;j<model->SV[i].dim;j++) {
+	    SV[i][j].index = j;//model->sv_ind[j];
+	    SV[i][j].value = model->SV[i].values[j];
+	  }
+	  SV[i][model->SV[i].dim].index = -1;
+	}
+	//for debug purpose
+#else
+	printf("DEBUG:storing sparse...\n");
+	const PREFIX(node) * const *SV = model->SV;
+#endif
+
+	for(int i=0;i<l;i++)
+	{
+		for(int j=0;j<nr_class-1;j++)
+			fprintf(fp, "%.16g ",sv_coef[j][i]);
+
+#ifdef _DENSE_REP
+		const libsvm_node *p = SV[i];
+#else
+		const PREFIX(node)* p = SV[i];
+#endif
+		if(param.kernel_type == PRECOMPUTED)
+			fprintf(fp,"0:%d ",(int)(p->value));
+		else
+			while(p->index != -1)
+			{
+				fprintf(fp,"%d:%.8g ",p->index,p->value);
+				p++;
+			}
+		fprintf(fp, "\n");
+	}
+	if (ferror(fp) != 0 || fclose(fp) != 0) return -1;
+	else return 0;
+}
 
 void PREFIX(free_model_content)(PREFIX(model)* model_ptr)
 {

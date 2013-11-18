@@ -339,7 +339,6 @@ def predict(np.ndarray[np.float64_t, ndim=2, mode='c'] X,
 
     return dec_values
 
-
 def predict_proba(
     np.ndarray[np.float64_t, ndim=2, mode='c'] X,
     np.ndarray[np.int32_t, ndim=1, mode='c'] support,
@@ -406,7 +405,6 @@ def predict_proba(
         free_model(model)
 
     return dec_values
-
 
 def decision_function(
     np.ndarray[np.float64_t, ndim=2, mode='c'] X,
@@ -584,3 +582,53 @@ def set_verbosity_wrap(int verbosity):
     Control verbosity of libsvm library
     """
     set_verbosity(verbosity)
+
+# Vmon: here I'm wrapping the svm_save_model but I need
+# to reconstruct the model as well, so I copied the decision_function
+# and modified it for this purpose
+def save_libsvm_model(
+    #np.ndarray[np.float64_t, ndim=2, mode='c'] X,
+    char* model_file_name,
+    np.ndarray[np.int32_t, ndim=1, mode='c'] support,
+    np.ndarray[np.float64_t, ndim=2, mode='c'] SV,
+    np.ndarray[np.int32_t, ndim=1, mode='c'] nSV,
+    np.ndarray[np.float64_t, ndim=2, mode='c'] sv_coef,
+    np.ndarray[np.float64_t, ndim=1, mode='c'] intercept,
+    np.ndarray[np.int32_t, ndim=1, mode='c'] label,
+    np.ndarray[np.float64_t, ndim=1, mode='c'] probA=np.empty(0),
+    np.ndarray[np.float64_t, ndim=1, mode='c'] probB=np.empty(0),
+    int svm_type=0, kernel='rbf', int degree=3,
+    double gamma=0.1, double coef0=0.,
+    np.ndarray[np.float64_t, ndim=1, mode='c']
+        class_weight=np.empty(0),
+    np.ndarray[np.float64_t, ndim=1, mode='c']
+         sample_weight=np.empty(0),
+    double cache_size=100.):
+    """
+    Predict margin (libsvm name for this is predict_values)
+
+    We have to reconstruct model and parameters to make sure we stay
+    in sync with the python object.
+    """
+    cdef svm_parameter param
+    cdef svm_model *model
+
+    cdef np.ndarray[np.int32_t, ndim=1, mode='c'] \
+        class_weight_label = np.arange(class_weight.shape[0], dtype=np.int32)
+
+    cdef int rv
+
+    set_predict_params(&param, svm_type, kernel, degree, gamma, coef0,
+                       cache_size, 0, <int>class_weight.shape[0],
+                       class_weight_label.data, class_weight.data)
+
+    model = set_model(&param, <int> nSV.shape[0], SV.data, SV.shape,
+                      support.data, support.shape, sv_coef.strides,
+                      sv_coef.data, intercept.data, nSV.data,
+                      label.data, probA.data, probB.data)
+    cdef int result	
+    with nogil:
+         result =  svm_save_model(model_file_name, model)    
+
+    return result
+

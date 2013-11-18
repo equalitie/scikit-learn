@@ -44,6 +44,12 @@ def test_libsvm_parameters():
     assert_array_equal(clf.intercept_, [0.])
     assert_array_equal(clf.predict(X), Y)
 
+def test_libsvm_save_libsvm_model():
+    """
+    Test if it is possible to save the model in libsvm format
+    """
+    clf = svm.SVC(kernel='linear').fit(X, Y)
+    svm.save_libsvm_model('test_model.txt')
 
 def test_libsvm_iris():
     """
